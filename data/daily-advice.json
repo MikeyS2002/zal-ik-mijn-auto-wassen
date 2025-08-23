@@ -1,0 +1,79 @@
+{
+  "date": "2025-08-23T21:17:16.238Z",
+  "advice": {
+    "decision": "JA",
+    "reason": "Prima weer om je auto te wassen! 🚗",
+    "reasonCategory": null,
+    "confidence": "HIGH",
+    "randomNumber": 2,
+    "analysis": {
+      "goodFactors": [
+        "Perfecte dagtemperatuur (16°C) voor wassen",
+        "Rustige wind - ideaal om te wassen",
+        "Bewolkt - geen risico op watervlekken of kalkstrepen",
+        "Bewolkt weer - ideaal om te wassen",
+        "Het blijft de komende dagen droog - je auto blijft langer schoon"
+      ],
+      "badFactors": [],
+      "warnings": []
+    }
+  },
+  "weather": {
+    "temperature": 13,
+    "dayTemperature": 16,
+    "nightTemperature": 12,
+    "uvIndex": 0,
+    "windSpeed": 4,
+    "rainExpected": false,
+    "cloudy": true,
+    "humidity": 75,
+    "description": "Onbewolkt",
+    "warnings": [],
+    "windDirection": "N",
+    "pressure": 1021.51,
+    "forecast": [
+      {
+        "dag": "23-08-2025",
+        "image": "halfbewolkt",
+        "max_temp": 16,
+        "min_temp": 12,
+        "windbft": 2,
+        "windkmh": 10,
+        "windknp": 6,
+        "windms": 3,
+        "windrgr": 184,
+        "windr": "Z",
+        "neersl_perc_dag": 0,
+        "zond_perc_dag": 88
+      },
+      {
+        "dag": "24-08-2025",
+        "image": "halfbewolkt",
+        "max_temp": 21,
+        "min_temp": 10,
+        "windbft": 2,
+        "windkmh": 7,
+        "windknp": 4,
+        "windms": 2,
+        "windrgr": 234,
+        "windr": "ZW",
+        "neersl_perc_dag": 0,
+        "zond_perc_dag": 93
+      },
+      {
+        "dag": "25-08-2025",
+        "image": "halfbewolkt",
+        "max_temp": 25,
+        "min_temp": 12,
+        "windbft": 2,
+        "windkmh": 7,
+        "windknp": 4,
+        "windms": 2,
+        "windrgr": 178,
+        "windr": "Z",
+        "neersl_perc_dag": 0,
+        "zond_perc_dag": 90
+      }
+    ]
+  }
+}
