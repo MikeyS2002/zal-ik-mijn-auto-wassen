@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --foreground: #373737;
+    --fredoka: "fredoka", sans-serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-foreground: var(--foreground);
+    --font-fredoka: var(--fredoka);
+}
+.nav-bg {
+    background: linear-gradient(218deg, #ecc9cf 16.36%, #eddcdf 86.98%);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@layer components {
+    body {
+        @apply font-fredoka text-foreground;
+    }
+    .menu {
+        @apply font-bold uppercase text-[28px] md:text-[36px] tracking-[0.04em] leading-[100%];
+    }
+
+    .h1 {
+        @apply font-bold uppercase text-[48px] md:text-[64px] tracking-[0.04em] leading-[100%];
+    }
+    .h2 {
+        @apply font-bold text-[28px] md:text-[36px] tracking-[0.04em];
+    }
+    .body {
+        @apply md:text-[16px] text-[14px] tracking-[0.04em];
+    }
+    .link {
+        @apply underline underline-offset-4;
+    }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@font-face {
+    font-family: "fredoka";
+    src: url("/fonts/Fredoka-Regular.ttf") format("truetype");
+    font-weight: 400;
+}
+@font-face {
+    font-family: "fredoka";
+    src: url("/fonts/Fredoka-SemiBold.ttf") format("truetype");
+    font-weight: 600;
 }
