@@ -1,12 +1,6 @@
 // app/api/daily-update/route.js
 import { getWeatherData } from "../../../lib/weatherServices.js";
-import { Redis } from "@upstash/redis";
-
-// Initialize Redis connection
-const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+import { kv } from "@vercel/kv";
 
 export async function GET() {
     try {
@@ -14,20 +8,20 @@ export async function GET() {
             timeZone: "Europe/Amsterdam",
         });
 
-        console.log(`Daily update running at: ${currentTime}`);
-
-        // Step 1: Get weather data from Weerlive.nl
-        console.log("Fetching weather data from Weerlive...");
         const weatherData = await getWeatherData("Amsterdam");
-
-        // Step 2: Make washing decision based on weather
-        console.log("Making washing decision...");
         const washingAdvice = makeWashingDecision(weatherData);
 
-        console.log("Final decision:", washingAdvice);
+        // Persist to KV
+        const payload = {
+            date: new Date().toISOString(),
+            advice: washingAdvice,
+            weather: weatherData,
+        };
+        const dateKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-        // Store the advice in Upstash Redis
-        await storeAdviceInRedis(washingAdvice, weatherData);
+        // Store per-day and a handy "latest" pointer. TTL ~30 hours.
+        await kv.set(`advice:${dateKey}`, payload, { ex: 60 * 60 * 30 });
+        await kv.set("advice:latest", payload, { ex: 60 * 60 * 30 });
 
         return Response.json({
             success: true,
@@ -38,7 +32,6 @@ export async function GET() {
         });
     } catch (error) {
         console.error("Error in daily update:", error);
-
         return Response.json(
             { success: false, error: "Update failed" },
             { status: 500 }
@@ -326,20 +319,26 @@ function makeWashingDecision(weather) {
     };
 }
 
-// Store advice in Upstash Redis database
-async function storeAdviceInRedis(advice, weather) {
+// Store advice to file
+async function storeAdvice(advice, weather) {
     try {
+        // Ensure data directory exists
+        const dataDir = path.join(process.cwd(), "data");
+        try {
+            await fs.access(dataDir);
+        } catch {
+            await fs.mkdir(dataDir, { recursive: true });
+        }
+
         const adviceData = {
             date: new Date().toISOString(),
             advice,
             weather,
         };
 
-        // Store with key 'daily-advice' - will overwrite previous day
-        await redis.set("daily-advice", JSON.stringify(adviceData));
-
-        console.log("Daily advice stored in Redis successfully");
+        await fs.writeFile(ADVICE_FILE, JSON.stringify(adviceData, null, 2));
+        console.log("Daily advice stored successfully");
     } catch (error) {
-        console.error("Error storing daily advice in Redis:", error);
+        console.error("Error storing daily advice:", error);
     }
 }

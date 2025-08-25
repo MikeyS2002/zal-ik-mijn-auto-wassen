@@ -1,6 +1,9 @@
 import Image from "next/image";
+import { kv } from "@vercel/kv";
 
-export default function Home() {
+export default async function Home() {
+    const latest = await kv.get("advice:latest");
+    console.log(latest);
     return (
         <main className="h-screen relative ">
             <div className="fixed z-10 top-[120px] max-w-[650px] left-1/2 -translate-x-1/2 text-center">
