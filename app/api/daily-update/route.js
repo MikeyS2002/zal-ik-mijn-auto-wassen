@@ -1,10 +1,12 @@
 // app/api/daily-update/route.js
 import { getWeatherData } from "../../../lib/weatherServices.js";
-import { promises as fs } from "fs";
-import path from "path";
+import { Redis } from "@upstash/redis";
 
-// File path to store daily advice
-const ADVICE_FILE = path.join(process.cwd(), "data", "daily-advice.json");
+// Initialize Redis connection
+const redis = new Redis({
+    url: process.env.REDIS_URL,
+    token: process.env.KV_REST_API_TOKEN,
+});
 
 export async function GET() {
     try {
@@ -24,8 +26,8 @@ export async function GET() {
 
         console.log("Final decision:", washingAdvice);
 
-        // Store the advice for today
-        await storeAdvice(washingAdvice, weatherData);
+        // Store the advice in Upstash Redis
+        await storeAdviceInRedis(washingAdvice, weatherData);
 
         return Response.json({
             success: true,
@@ -324,26 +326,20 @@ function makeWashingDecision(weather) {
     };
 }
 
-// Store advice to file
-async function storeAdvice(advice, weather) {
+// Store advice in Upstash Redis database
+async function storeAdviceInRedis(advice, weather) {
     try {
-        // Ensure data directory exists
-        const dataDir = path.join(process.cwd(), "data");
-        try {
-            await fs.access(dataDir);
-        } catch {
-            await fs.mkdir(dataDir, { recursive: true });
-        }
-
         const adviceData = {
             date: new Date().toISOString(),
             advice,
             weather,
         };
 
-        await fs.writeFile(ADVICE_FILE, JSON.stringify(adviceData, null, 2));
-        console.log("Daily advice stored successfully");
+        // Store with key 'daily-advice' - will overwrite previous day
+        await redis.set("daily-advice", JSON.stringify(adviceData));
+
+        console.log("Daily advice stored in Redis successfully");
     } catch (error) {
-        console.error("Error storing daily advice:", error);
+        console.error("Error storing daily advice in Redis:", error);
     }
 }
