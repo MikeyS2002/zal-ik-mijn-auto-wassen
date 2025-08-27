@@ -1,17 +1,23 @@
 // app/api/daily-update/route.js
 import { getWeatherData } from "../../../lib/weatherServices.js";
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 
 // Function to get Redis client when needed
-function getRedisClient() {
-    if (!process.env.UPSTASH_REDIS_REST_URL) {
+async function getRedisClient() {
+    if (!process.env.KV_REDIS_URL) {
         return null;
     }
 
-    return new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+    try {
+        const redis = createClient({
+            url: process.env.KV_REDIS_URL,
+        });
+        await redis.connect();
+        return redis;
+    } catch (error) {
+        console.error("Failed to connect to Redis:", error);
+        return null;
+    }
 }
 
 export async function GET() {
@@ -22,17 +28,17 @@ export async function GET() {
 
         console.log(`Daily update running at: ${currentTime}`);
 
-        // Step 1: Get weather data from Weerlive.nl
+        // Get weather data from Weerlive.nl
         console.log("Fetching weather data from Weerlive...");
         const weatherData = await getWeatherData("Amsterdam");
 
-        // Step 2: Make washing decision based on weather
+        // Make washing decision based on weather
         console.log("Making washing decision...");
         const washingAdvice = makeWashingDecision(weatherData);
 
         console.log("Final decision:", washingAdvice);
 
-        // Store the advice in Upstash Redis
+        // Store the advice in Redis
         await storeAdviceInRedis(washingAdvice, weatherData);
 
         return Response.json({
@@ -46,7 +52,7 @@ export async function GET() {
         console.error("Error in daily update:", error);
 
         return Response.json(
-            { success: false, error: "Update failed" },
+            { success: false, error: "Update failed", details: error.message },
             { status: 500 }
         );
     }
@@ -69,9 +75,7 @@ function makeWashingDecision(weather) {
         forecast: weather.forecast?.slice(0, 2),
     });
 
-    // ANALYZE ALL FACTORS
-
-    // Temperature analysis - use DAY temperature, not current morning temp
+    // Temperature analysis - use DAY temperature
     if (weather.dayTemperature < 5) {
         badFactors.push({
             severity: "CRITICAL",
@@ -107,38 +111,40 @@ function makeWashingDecision(weather) {
         goodFactors.push("Rustige wind - ideaal om te wassen");
     }
 
-    // UV analysis
-    if (weather.uvIndex > 7) {
+    // Temperatuur/zon analyse - simpel en effectief
+    const desc = weather.description.toLowerCase();
+
+    if (weather.dayTemperature >= 28) {
         badFactors.push({
             severity: "CRITICAL",
-            factor: `De zon is veel te fel (UV ${weather.uvIndex}). Je krijgt gegarandeerd watervlekken en kalkstrepen.`,
+            factor: `Het wordt te warm (${weather.dayTemperature}°C). Bij deze temperatuur is het vrijwel altijd te zonnig - je krijgt gegarandeerd watervlekken.`,
         });
-    } else if (weather.uvIndex >= 5) {
+    } else if (weather.dayTemperature >= 24 && !desc.includes("bewolkt")) {
         warnings.push(
-            `De zon is vrij fel (UV ${weather.uvIndex}). Spoel vaak af en was bij voorkeur in de schaduw`
+            `Het wordt warm (${weather.dayTemperature}°C) en zonnig. Was in de schaduw en spoel regelmatig af`
         );
-    } else if (weather.uvIndex <= 2 && weather.cloudy) {
+    } else if (desc.includes("bewolkt") || desc.includes("grijs")) {
         goodFactors.push(
             "Bewolkt - geen risico op watervlekken of kalkstrepen"
         );
     }
 
     // Current weather description
-    const desc = weather.description.toLowerCase();
     if (desc.includes("bewolkt") || desc.includes("grijs")) {
-        goodFactors.push("Bewolkt weer - ideaal om te wassen");
-    } else if (desc.includes("zon") && weather.uvIndex > 5) {
+        // Deze check is al gedaan in de temperatuur analyse hierboven, dus weglaten
+        // goodFactors.push("Bewolkt weer - ideaal om te wassen");
+    } else if (desc.includes("zon") && weather.dayTemperature >= 24) {
+        // Aangepast om temperatuur te gebruiken in plaats van UV
         warnings.push(
             "Het is zonnig. Zorg dat de auto nat blijft tijdens het wassen"
         );
     }
 
-    // FORECAST ANALYSIS - Can override current conditions
+    // FORECAST ANALYSIS
     if (weather.forecast && weather.forecast.length > 0) {
         const tomorrow = weather.forecast[0];
         const dayAfter = weather.forecast[1];
 
-        // Heavy rain tomorrow
         if (tomorrow && tomorrow.neersl_perc_dag > 60) {
             badFactors.push({
                 severity: "CRITICAL",
@@ -148,14 +154,12 @@ function makeWashingDecision(weather) {
             warnings.push("Morgen kan het regenen");
         }
 
-        // Day after tomorrow rain
         if (dayAfter && dayAfter.neersl_perc_dag > 50) {
             warnings.push("Overmorgen wordt regen verwacht");
         } else if (dayAfter && dayAfter.neersl_perc_dag > 30) {
             warnings.push("Het kan overmorgen gaan miezeren");
         }
 
-        // Storm conditions (wind + rain)
         if (
             tomorrow &&
             tomorrow.neersl_perc_dag > 30 &&
@@ -167,7 +171,6 @@ function makeWashingDecision(weather) {
             });
         }
 
-        // Good forecast bonus
         if (
             tomorrow &&
             dayAfter &&
@@ -200,7 +203,6 @@ function makeWashingDecision(weather) {
         baseMessage,
         reasonCategory = null;
 
-    // NEE - Critical bad factors always win
     if (criticalBad) {
         decision = "NEE";
         const criticalReasons = badFactors
@@ -209,7 +211,6 @@ function makeWashingDecision(weather) {
             .join(" Ook ");
         baseMessage = `Het is zonde van je geld om nu te wassen. ${criticalReasons}`;
 
-        // Determine reason category for image
         const criticalFactor = badFactors
             .find((f) => f.severity === "CRITICAL")
             .factor.toLowerCase();
@@ -224,88 +225,46 @@ function makeWashingDecision(weather) {
             criticalFactor.includes("regent")
         ) {
             reasonCategory = "REGEN";
-        } else if (
-            criticalFactor.includes("koud") ||
-            criticalFactor.includes("onder 5°c")
-        ) {
+        } else if (criticalFactor.includes("koud")) {
             reasonCategory = "KOUD";
         } else if (
             criticalFactor.includes("warm") ||
             criticalFactor.includes("fel") ||
             criticalFactor.includes("uv")
         ) {
-            // Check if it's pollen season (April-August) + warm weather
             const now = new Date();
-            const month = now.getMonth() + 1; // 1-12
+            const month = now.getMonth() + 1;
             if (month >= 4 && month <= 8 && weather.dayTemperature > 20) {
                 reasonCategory = "POLLEN";
             } else {
                 reasonCategory = "WARM";
             }
         } else if (criticalFactor.includes("waarschuwing")) {
-            reasonCategory = "STORM"; // Weather warnings usually mean storm
+            reasonCategory = "STORM";
         }
-    }
-    // NEE - Too many moderate bad factors
-    else if (moderateBad >= 2) {
+    } else if (moderateBad >= 2) {
         decision = "NEE";
         const reasons = badFactors.map((f) => f.factor).join(" En ");
         baseMessage = `Het is niet verstandig om nu te wassen. ${reasons}`;
-
-        // For multiple moderate factors, pick the most severe one
-        const firstFactor = badFactors[0].factor.toLowerCase();
-        if (firstFactor.includes("wind") && firstFactor.includes("koud")) {
-            reasonCategory = "KOUD"; // Cold is usually more critical than wind
-        } else if (firstFactor.includes("koud")) {
-            reasonCategory = "KOUD";
-        } else if (firstFactor.includes("wind")) {
-            reasonCategory = "STORM";
-        } else if (firstFactor.includes("warm")) {
-            const now = new Date();
-            const month = now.getMonth() + 1;
-            reasonCategory =
-                month >= 4 && month <= 8 && weather.dayTemperature > 20
-                    ? "POLLEN"
-                    : "WARM";
-        }
-    }
-    // NEE - Some bad factors and no good factors
-    else if (moderateBad >= 1 && goodCount === 0) {
+    } else if (moderateBad >= 1 && goodCount === 0) {
         decision = "NEE";
         baseMessage = `Het is niet het ideale moment. ${badFactors[0].factor}`;
-
-        const factor = badFactors[0].factor.toLowerCase();
-        if (factor.includes("koud")) {
-            reasonCategory = "KOUD";
-        } else if (factor.includes("wind")) {
-            reasonCategory = "STORM";
-        } else if (factor.includes("warm")) {
-            const now = new Date();
-            const month = now.getMonth() + 1;
-            reasonCategory =
-                month >= 4 && month <= 8 && weather.dayTemperature > 20
-                    ? "POLLEN"
-                    : "WARM";
-        }
-    }
-    // JA - Everything else
-    else {
+    } else {
         decision = "JA";
         if (goodCount >= 2) {
-            baseMessage = `Prima weer om je auto te wassen! 🚗`;
+            baseMessage = `Prima weer om je auto te wassen!`;
         } else {
             baseMessage = `Het is een goed moment om je auto te wassen`;
         }
-        reasonCategory = null; // No image needed for JA
+        reasonCategory = null;
     }
 
     // ADD WARNINGS TO MESSAGE
     let finalMessage = baseMessage;
     if (warnings.length > 0 && decision === "JA") {
-        const warningText = warnings.slice(0, 2).join(". "); // Max 2 warnings
+        const warningText = warnings.slice(0, 2).join(". ");
         finalMessage += `. Let op: ${warningText}`;
     } else if (warnings.length > 0 && decision === "NEE") {
-        // For NEE decisions, warnings are less relevant but can be mentioned
         if (
             warnings.some(
                 (w) => w.includes("morgen") || w.includes("overmorgen")
@@ -321,9 +280,9 @@ function makeWashingDecision(weather) {
     return {
         decision,
         reason: finalMessage,
-        reasonCategory: reasonCategory, // STORM, REGEN, POLLEN, WARM, KOUD, or null
+        reasonCategory: reasonCategory,
         confidence: criticalBad ? "HIGH" : moderateBad >= 1 ? "MEDIUM" : "HIGH",
-        randomNumber: Math.floor(Math.random() * 4) + 1, // Random number 1-4
+        randomNumber: Math.floor(Math.random() * 4) + 1,
         analysis: {
             goodFactors,
             badFactors: badFactors.map((f) => f.factor),
@@ -332,10 +291,12 @@ function makeWashingDecision(weather) {
     };
 }
 
-// Store advice in Upstash Redis database
+// Store advice in Redis database
 async function storeAdviceInRedis(advice, weather) {
+    let redis = null;
+
     try {
-        const redis = getRedisClient();
+        redis = await getRedisClient();
         if (!redis) {
             console.log("Redis not available, skipping storage");
             return;
@@ -347,11 +308,13 @@ async function storeAdviceInRedis(advice, weather) {
             weather,
         };
 
-        // Store with key 'daily-advice' - will overwrite previous day
         await redis.set("daily-advice", JSON.stringify(adviceData));
-
         console.log("Daily advice stored in Redis successfully");
     } catch (error) {
         console.error("Error storing daily advice in Redis:", error);
+    } finally {
+        if (redis && redis.isReady) {
+            await redis.quit();
+        }
     }
 }
