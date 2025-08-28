@@ -1,3 +1,6 @@
+import React from "react";
+import Image from "next/image";
+
 import { createClient } from "redis";
 
 // Function to get Redis client
@@ -73,25 +76,35 @@ export default async function Home() {
     console.log(adviceData);
 
     return (
-        <main className="h-screen relative">
-            <div className="fixed z-10 top-[120px] max-w-[650px] left-1/2 -translate-x-1/2 text-center px-4">
-                <h1 className="h2 text-white drop-shadow-lg">
-                    {adviceData.decision === "JA" ? "Ja" : "Nee"},{" "}
+        <main className="h-screen relativ">
+            <div className="fixed z-10 top-[120px] max-w-[650px] w-full left-1/2 -translate-x-1/2 text-center px-4">
+                <h1 className="h2">
                     {adviceData.decision === "JA"
-                        ? "je kan vandaag je auto wassen"
-                        : "was je auto vandaag niet"}
+                        ? "Ja, je kan vandaag je auto wassen."
+                        : "Nee, het is neit handig om vandaag je auto te wassen."}
                 </h1>
-                <h2 className="body mt-4 text-white drop-shadow-md bg-black bg-opacity-30 p-4 rounded-lg">
-                    {adviceData.reason}
-                </h2>
+                <h2 className="body mt-4">{adviceData.reason}</h2>
             </div>
-
-            <div className="bg-gradient-to-br from-blue-400 to-blue-600 h-full w-full flex items-center justify-center">
-                <div className="text-white text-center">
-                    <div className="text-6xl mb-4">🚗</div>
-                    <div className="text-2xl font-bold">Auto Wasadvies</div>
-                </div>
-            </div>
+            {adviceData.decision === "JA" && (
+                <>
+                    <Image
+                        alt="Je kan vandaag je auto wassen"
+                        src={`/images/ja/desktop-ja-${adviceData.randomNumber}.jpg`}
+                        width={2500}
+                        priority
+                        height={1800}
+                        className="w-full select-none pointer-none hidden sm:block h-full object-cover absolute top-0 left-0"
+                    />
+                    <Image
+                        alt="Je kan vandaag je auto wassen"
+                        src={`/images/ja/mobile-ja-${adviceData.randomNumber}.jpg`}
+                        width={800}
+                        priority
+                        height={1200}
+                        className="w-full select-none pointer-none sm:hidden block h-full object-cover absolute top-0 left-0"
+                    />
+                </>
+            )}
         </main>
     );
 }

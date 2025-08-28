@@ -15,7 +15,7 @@
 
 @layer components {
     body {
-        @apply font-fredoka text-foreground;
+        @apply font-fredoka text-foreground overflow-hidden;
     }
     .menu {
         @apply font-bold uppercase text-[28px] md:text-[36px] tracking-[0.04em] leading-[100%];

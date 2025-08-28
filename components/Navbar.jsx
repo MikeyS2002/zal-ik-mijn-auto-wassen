@@ -39,7 +39,7 @@ const Navbar = () => {
                         <Link href="/">Was Check</Link>
                     </li>
                     <li className="h1" onClick={toggleMenu}>
-                        <Link href="/artikelen">Tips</Link>
+                        <Link href="/tips">Tips</Link>
                     </li>
                 </ul>
                 <p className="absolute bottom-10 text-center w-full left-1/2 -translate-1/2">
