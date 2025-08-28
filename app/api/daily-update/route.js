@@ -304,6 +304,9 @@ async function storeAdviceInRedis(advice, weather) {
 
         const adviceData = {
             date: new Date().toISOString(),
+            generatedAt: new Date().toLocaleString("nl-NL", {
+                timeZone: "Europe/Amsterdam",
+            }),
             advice,
             weather,
         };

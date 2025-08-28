@@ -34,6 +34,7 @@ export default async function Home() {
                 const parsed = JSON.parse(storedData);
                 adviceData = parsed.advice;
                 console.log("Found stored advice:", adviceData.decision);
+                console.log(parsed);
             } else {
                 console.log(
                     "No advice found in Redis, calling daily-update..."
