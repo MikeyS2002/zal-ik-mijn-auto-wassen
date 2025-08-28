@@ -3,20 +3,37 @@ import { Redis } from "@upstash/redis";
 
 // Function to get Redis client when needed
 function getRedisClient() {
-    if (!process.env.UPSTASH_REDIS_REST_URL) {
-        return null;
+    // Use the new Vercel KV variables first
+    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+        console.log("Using Vercel KV Redis connection");
+        return new Redis({
+            url: process.env.KV_REST_API_URL,
+            token: process.env.KV_REST_API_TOKEN,
+        });
     }
 
-    return new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+    // Fallback to legacy Upstash variables
+    if (
+        process.env.UPSTASH_REDIS_REST_URL &&
+        process.env.UPSTASH_REDIS_REST_TOKEN
+    ) {
+        console.log("Using legacy Upstash Redis connection");
+        return new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        });
+    }
+
+    console.log("No Redis configuration found");
+    return null;
 }
 
 export async function GET() {
+    let redis = null;
+
     try {
         // Try to get stored advice from Redis
-        const redis = getRedisClient();
+        redis = await getRedisClient();
         if (redis) {
             const storedAdviceString = await redis.get("daily-advice");
 
@@ -62,6 +79,10 @@ export async function GET() {
             },
             { status: 500 }
         );
+    } finally {
+        if (redis && redis.isReady) {
+            await redis.quit();
+        }
     }
 }
 

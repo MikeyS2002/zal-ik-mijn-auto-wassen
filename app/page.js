@@ -69,15 +69,7 @@ export default async function Home() {
         }
     }
 
-    // Fallback advice if nothing in Redis
-    if (!adviceData) {
-        adviceData = {
-            decision: "JA",
-            reason: "Het lijkt een prima dag om je auto te wassen!",
-            reasonCategory: null,
-            randomNumber: 1,
-        };
-    }
+    console.log(adviceData);
 
     return (
         <main className="h-screen relative">
