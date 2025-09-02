@@ -59,234 +59,299 @@ export async function GET() {
 }
 
 // Decision Logic: JA/NEE with smart contextual messages
+// Decision Logic volgens PDF specificaties - Alleen Regen & Temperatuur
 function makeWashingDecision(weather) {
-    const goodFactors = [];
-    const badFactors = [];
-    const warnings = [];
-
     console.log("Weather analysis:", {
         currentTemp: weather.temperature,
         dayTemp: weather.dayTemperature,
         nightTemp: weather.nightTemperature,
         description: weather.description,
-        wind: weather.windSpeed,
-        uv: weather.uvIndex,
-        rain: weather.rainExpected,
+        rainExpected: weather.rainExpected,
         forecast: weather.forecast?.slice(0, 2),
     });
 
-    // Temperature analysis - use DAY temperature
-    if (weather.dayTemperature < 5) {
-        badFactors.push({
-            severity: "CRITICAL",
-            factor: `Het wordt vandaag te koud (max ${weather.dayTemperature}°C). Wasproducten werken slecht en je auto droogt niet goed.`,
-        });
-    } else if (weather.dayTemperature < 8) {
-        badFactors.push({
-            severity: "MODERATE",
-            factor: `Het wordt koud vandaag (max ${weather.dayTemperature}°C). Zorg dat je auto goed droogt en gebruik lauwwarm water.`,
-        });
-    } else if (weather.dayTemperature >= 12 && weather.dayTemperature <= 22) {
-        goodFactors.push(
-            `Perfecte dagtemperatuur (${weather.dayTemperature}°C) voor wassen`
-        );
-    } else if (weather.dayTemperature > 25) {
-        warnings.push(
-            `Het wordt warm vandaag (${weather.dayTemperature}°C). Was in de schaduw en spoel regelmatig af zodat zeep niet opdroogt`
-        );
-    }
-
-    // Wind analysis
-    if (weather.windSpeed > 50) {
-        badFactors.push({
-            severity: "CRITICAL",
-            factor: `Er staat heel harde wind (${weather.windSpeed} km/h). Stof en vuil waait direct terug op je auto.`,
-        });
-    } else if (weather.windSpeed > 30) {
-        badFactors.push({
-            severity: "MODERATE",
-            factor: `Er staat flinke wind (${weather.windSpeed} km/h). Kans op stof en bladeren`,
-        });
-    } else if (weather.windSpeed <= 15) {
-        goodFactors.push("Rustige wind - ideaal om te wassen");
-    }
-
-    // Temperatuur/zon analyse - simpel en effectief
+    // Check voor regen vandaag
     const desc = weather.description.toLowerCase();
+    const rainingToday = desc.includes("regen") || desc.includes("bui");
 
-    if (weather.dayTemperature >= 28) {
-        badFactors.push({
-            severity: "CRITICAL",
-            factor: `Het wordt te warm (${weather.dayTemperature}°C). Bij deze temperatuur is het vrijwel altijd te zonnig - je krijgt gegarandeerd watervlekken.`,
-        });
-    } else if (weather.dayTemperature >= 24 && !desc.includes("bewolkt")) {
-        warnings.push(
-            `Het wordt warm (${weather.dayTemperature}°C) en zonnig. Was in de schaduw en spoel regelmatig af`
-        );
-    } else if (desc.includes("bewolkt") || desc.includes("grijs")) {
-        goodFactors.push(
-            "Bewolkt - geen risico op watervlekken of kalkstrepen"
-        );
+    // Check forecast voor morgen en overmorgen
+    const tomorrow =
+        weather.forecast && weather.forecast[0] ? weather.forecast[0] : null;
+    const dayAfter =
+        weather.forecast && weather.forecast[1] ? weather.forecast[1] : null;
+
+    const rainTomorrow = tomorrow && tomorrow.neersl_perc_dag > 60;
+    const rainDayAfter = dayAfter && dayAfter.neersl_perc_dag > 60;
+    const lightRainTomorrow =
+        tomorrow &&
+        tomorrow.neersl_perc_dag > 30 &&
+        tomorrow.neersl_perc_dag <= 60;
+    const lightRainDayAfter =
+        dayAfter &&
+        dayAfter.neersl_perc_dag > 30 &&
+        dayAfter.neersl_perc_dag <= 60;
+    const stormTomorrow =
+        tomorrow && tomorrow.neersl_perc_dag > 60 && tomorrow.windkmh > 25;
+    const stormDayAfter =
+        dayAfter && dayAfter.neersl_perc_dag > 60 && dayAfter.windkmh > 25;
+
+    // KNMI waarschuwingen
+    const hasWeatherWarning = weather.warnings && weather.warnings.length > 0;
+
+    // REGEN LOGIC volgens PDF
+    if (hasWeatherWarning) {
+        return {
+            decision: "NEE",
+            reason: "Er is een weerswaarschuwing van kracht. Wacht tot het voorbij is.",
+            reasonCategory: "STORM",
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: ["Weerswaarschuwing"],
+                warnings: [],
+            },
+        };
     }
 
-    // Current weather description
-    if (desc.includes("bewolkt") || desc.includes("grijs")) {
-        // Deze check is al gedaan in de temperatuur analyse hierboven, dus weglaten
-        // goodFactors.push("Bewolkt weer - ideaal om te wassen");
-    } else if (desc.includes("zon") && weather.dayTemperature >= 24) {
-        // Aangepast om temperatuur te gebruiken in plaats van UV
-        warnings.push(
-            "Het is zonnig. Zorg dat de auto nat blijft tijdens het wassen"
-        );
+    // Bepaal of het sneeuwt (onder 0 graden)
+    const isSnowing = weather.dayTemperature <= 0;
+    const weatherWord = isSnowing ? "sneeuwen" : "regenen";
+    const weatherCategory = isSnowing ? "KOUD" : "REGEN";
+    const stormCategory = isSnowing ? "KOUD" : "STORM";
+
+    if (rainingToday) {
+        return {
+            decision: "NEE",
+            reason: isSnowing
+                ? "Het sneeuwt vandaag."
+                : "Het gaat vandaag regenen.",
+            reasonCategory: weatherCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [isSnowing ? "Sneeuw vandaag" : "Regen vandaag"],
+                warnings: [],
+            },
+        };
     }
 
-    // FORECAST ANALYSIS
-    if (weather.forecast && weather.forecast.length > 0) {
-        const tomorrow = weather.forecast[0];
-        const dayAfter = weather.forecast[1];
-
-        if (tomorrow && tomorrow.neersl_perc_dag > 60) {
-            badFactors.push({
-                severity: "CRITICAL",
-                factor: "Morgen regent het flink. Je auto wordt toch weer vies, dus zonde van je geld.",
-            });
-        } else if (tomorrow && tomorrow.neersl_perc_dag > 30) {
-            warnings.push("Morgen kan het regenen");
-        }
-
-        if (dayAfter && dayAfter.neersl_perc_dag > 50) {
-            warnings.push("Overmorgen wordt regen verwacht");
-        } else if (dayAfter && dayAfter.neersl_perc_dag > 30) {
-            warnings.push("Het kan overmorgen gaan miezeren");
-        }
-
-        if (
-            tomorrow &&
-            tomorrow.neersl_perc_dag > 30 &&
-            tomorrow.windkmh > 25
-        ) {
-            badFactors.push({
-                severity: "CRITICAL",
-                factor: `Morgen komt er storm (${tomorrow.windkmh} km/h + regen). Je auto wordt modderig.`,
-            });
-        }
-
-        if (
-            tomorrow &&
-            dayAfter &&
-            tomorrow.neersl_perc_dag <= 20 &&
-            dayAfter.neersl_perc_dag <= 20
-        ) {
-            goodFactors.push(
-                "Het blijft de komende dagen droog - je auto blijft langer schoon"
-            );
-        }
+    if (rainTomorrow && rainDayAfter) {
+        return {
+            decision: "NEE",
+            reason: `De aankomende dagen gaat het ${weatherWord}.`,
+            reasonCategory: stormCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [
+                    isSnowing
+                        ? "Sneeuw morgen en overmorgen"
+                        : "Regen morgen en overmorgen",
+                ],
+                warnings: [],
+            },
+        };
     }
 
-    // Weather warnings from KNMI
-    if (weather.warnings && weather.warnings.length > 0) {
-        badFactors.push({
-            severity: "CRITICAL",
-            factor: `Er is een weerswaarschuwing van kracht. Wacht tot het voorbij is`,
-        });
+    if (rainingToday && rainTomorrow && !rainDayAfter) {
+        return {
+            decision: "NEE",
+            reason: `Vandaag en morgen gaat het ${weatherWord}. Je kunt het beste wachten tot overmorgen.`,
+            reasonCategory: stormCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [
+                    isSnowing
+                        ? "Sneeuw vandaag en morgen"
+                        : "Regen vandaag en morgen",
+                ],
+                warnings: [],
+            },
+        };
     }
 
-    // DECISION LOGIC: JA or NEE
-    const criticalBad =
-        badFactors.filter((f) => f.severity === "CRITICAL").length > 0;
-    const moderateBad = badFactors.filter(
-        (f) => f.severity === "MODERATE"
-    ).length;
-    const goodCount = goodFactors.length;
-
-    let decision,
-        baseMessage,
-        reasonCategory = null;
-
-    if (criticalBad) {
-        decision = "NEE";
-        const criticalReasons = badFactors
-            .filter((f) => f.severity === "CRITICAL")
-            .map((f) => f.factor)
-            .join(" Ook ");
-        baseMessage = `Het is zonde van je geld om nu te wassen. ${criticalReasons}`;
-
-        const criticalFactor = badFactors
-            .find((f) => f.severity === "CRITICAL")
-            .factor.toLowerCase();
-        if (
-            criticalFactor.includes("storm") ||
-            (criticalFactor.includes("wind") &&
-                criticalFactor.includes("regen"))
-        ) {
-            reasonCategory = "STORM";
-        } else if (
-            criticalFactor.includes("regen") ||
-            criticalFactor.includes("regent")
-        ) {
-            reasonCategory = "REGEN";
-        } else if (criticalFactor.includes("koud")) {
-            reasonCategory = "KOUD";
-        } else if (
-            criticalFactor.includes("warm") ||
-            criticalFactor.includes("fel") ||
-            criticalFactor.includes("uv")
-        ) {
-            const now = new Date();
-            const month = now.getMonth() + 1;
-            if (month >= 4 && month <= 8 && weather.dayTemperature > 20) {
-                reasonCategory = "POLLEN";
-            } else {
-                reasonCategory = "WARM";
-            }
-        } else if (criticalFactor.includes("waarschuwing")) {
-            reasonCategory = "STORM";
-        }
-    } else if (moderateBad >= 2) {
-        decision = "NEE";
-        const reasons = badFactors.map((f) => f.factor).join(" En ");
-        baseMessage = `Het is niet verstandig om nu te wassen. ${reasons}`;
-    } else if (moderateBad >= 1 && goodCount === 0) {
-        decision = "NEE";
-        baseMessage = `Het is niet het ideale moment. ${badFactors[0].factor}`;
-    } else {
-        decision = "JA";
-        if (goodCount >= 2) {
-            baseMessage = `Prima weer om je auto te wassen!`;
-        } else {
-            baseMessage = `Het is een goed moment om je auto te wassen`;
-        }
-        reasonCategory = null;
+    if (!rainingToday && rainTomorrow && rainDayAfter) {
+        return {
+            decision: "NEE",
+            reason: `Het gaat morgen en overmorgen ${weatherWord}.`,
+            reasonCategory: stormCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [
+                    isSnowing
+                        ? "Sneeuw morgen en overmorgen"
+                        : "Regen morgen en overmorgen",
+                ],
+                warnings: [],
+            },
+        };
     }
 
-    // ADD WARNINGS TO MESSAGE
-    let finalMessage = baseMessage;
-    if (warnings.length > 0 && decision === "JA") {
-        const warningText = warnings.slice(0, 2).join(". ");
-        finalMessage += `. Let op: ${warningText}`;
-    } else if (warnings.length > 0 && decision === "NEE") {
-        if (
-            warnings.some(
-                (w) => w.includes("morgen") || w.includes("overmorgen")
-            )
-        ) {
-            const futureWarnings = warnings.filter(
-                (w) => w.includes("morgen") || w.includes("overmorgen")
-            );
-            finalMessage += ` ${futureWarnings[0]}`;
-        }
+    if (stormTomorrow) {
+        return {
+            decision: "NEE",
+            reason: isSnowing
+                ? "Nee morgen is er een sneeuwstorm op komst, het zou zonde zijn om nu je auto te wassen."
+                : "Nee morgen is er storm op komst, het zou zonde zijn om nu je auto te wassen.",
+            reasonCategory: stormCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [isSnowing ? "Sneeuwstorm morgen" : "Storm morgen"],
+                warnings: [],
+            },
+        };
     }
 
+    if (stormDayAfter) {
+        return {
+            decision: "NEE",
+            reason: isSnowing
+                ? "Het gaat overmorgen keihard sneeuwen."
+                : "Het gaat overmorgen keihard regenen.",
+            reasonCategory: stormCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [
+                    isSnowing ? "Sneeuwstorm overmorgen" : "Storm overmorgen",
+                ],
+                warnings: [],
+            },
+        };
+    }
+
+    if (rainTomorrow) {
+        return {
+            decision: "NEE",
+            reason: `Het gaat morgen ${weatherWord}.`,
+            reasonCategory: weatherCategory,
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: [isSnowing ? "Sneeuw morgen" : "Regen morgen"],
+                warnings: [],
+            },
+        };
+    }
+
+    // TEMPERATUUR LOGIC volgens PDF
+    if (weather.dayTemperature >= 30) {
+        return {
+            decision: "NEE",
+            reason: "Het is extreem warm, er kunnen watervlekken op je auto komen.",
+            reasonCategory: "WARM",
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: ["Extreem warm"],
+                warnings: [],
+            },
+        };
+    }
+
+    // Pollenseizoen check (april-augustus)
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const isPollenSeason = month >= 4 && month <= 8;
+
+    if (weather.dayTemperature > 25 && isPollenSeason) {
+        return {
+            decision: "NEE",
+            reason: "Met deze warmte in het pollenseizoen kan je auto heel snel weer vies worden.",
+            reasonCategory: "POLLEN",
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: ["Warm + pollen"],
+                warnings: [],
+            },
+        };
+    }
+
+    if (weather.dayTemperature > 25) {
+        return {
+            decision: "NEE",
+            reason: "Je kan je auto wassen. Let op: overmorgen gaat het miezeren.", // Dit lijkt een fout in PDF, maar ik volg het exact
+            reasonCategory: "WARM",
+            confidence: "MEDIUM",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: [],
+                badFactors: ["Te warm"],
+                warnings: ["Warm weer"],
+            },
+        };
+    }
+
+    if (weather.dayTemperature < 0) {
+        return {
+            decision: "NEE",
+            reason: "Het vriest, het is niet handig om je auto nu te wassen.",
+            reasonCategory: "KOUD",
+            confidence: "HIGH",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: { goodFactors: [], badFactors: ["Vorst"], warnings: [] },
+        };
+    }
+
+    if (weather.dayTemperature < 5) {
+        return {
+            decision: "JA",
+            reason: "Maar let op; schoonmaakspullen kunnen minder goed werken.",
+            reasonCategory: "KOUD",
+            confidence: "MEDIUM",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: ["Kan wassen"],
+                badFactors: [],
+                warnings: ["Koud weer"],
+            },
+        };
+    }
+
+    // Tussen 5 en 25 graden - check voor lichte regen/sneeuw overmorgen
+    if (lightRainDayAfter) {
+        const lightWeatherWord = isSnowing ? "gaan sneeuwen" : "miezeren";
+        return {
+            decision: "JA",
+            reason: `Je kan je auto wassen. Let op: overmorgen gaat het ${lightWeatherWord}.`,
+            reasonCategory: null,
+            confidence: "MEDIUM",
+            randomNumber: Math.floor(Math.random() * 4) + 1,
+            analysis: {
+                goodFactors: ["Goed weer"],
+                badFactors: [],
+                warnings: [
+                    isSnowing ? "Sneeuw overmorgen" : "Regen overmorgen",
+                ],
+            },
+        };
+    }
+
+    // Default tussen 5 en 25 graden
     return {
-        decision,
-        reason: finalMessage,
-        reasonCategory: reasonCategory,
-        confidence: criticalBad ? "HIGH" : moderateBad >= 1 ? "MEDIUM" : "HIGH",
+        decision: "JA",
+        reason: "Het is een goed moment om je auto te wassen.",
+        reasonCategory: null,
+        confidence: "HIGH",
         randomNumber: Math.floor(Math.random() * 4) + 1,
         analysis: {
-            goodFactors,
-            badFactors: badFactors.map((f) => f.factor),
-            warnings,
+            goodFactors: ["Perfect weer"],
+            badFactors: [],
+            warnings: [],
         },
     };
 }
