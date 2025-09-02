@@ -12,7 +12,7 @@ const Navbar = () => {
 
     return (
         <nav className="">
-            <Link href="/">
+            <Link href="/" onClick={toggleMenu}>
                 <Image
                     src="/images/auto_wassen_logo.png"
                     width={96}

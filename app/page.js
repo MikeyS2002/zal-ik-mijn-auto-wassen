@@ -85,6 +85,7 @@ export default async function Home() {
                 </h1>
                 <h2 className="body mt-4">{adviceData.reason}</h2>
             </div>
+
             {adviceData.decision === "JA" && (
                 <>
                     <Image
@@ -98,6 +99,27 @@ export default async function Home() {
                     <Image
                         alt="Je kan vandaag je auto wassen"
                         src={`/images/ja/mobile-ja-${adviceData.randomNumber}.jpg`}
+                        width={800}
+                        priority
+                        height={1200}
+                        className="w-full select-none pointer-none sm:hidden block h-full object-cover absolute top-0 left-0"
+                    />
+                </>
+            )}
+
+            {adviceData.decision === "NEE" && (
+                <>
+                    <Image
+                        alt="Je kan vandaag je auto wassen"
+                        src={`/images/nee/desktop-nee-${adviceData.reasonCategory}.jpg`}
+                        width={2500}
+                        priority
+                        height={1800}
+                        className="w-full select-none pointer-none hidden sm:block h-full object-cover absolute top-0 left-0"
+                    />
+                    <Image
+                        alt="Je kan vandaag je auto wassen"
+                        src={`/images/nee/mobile-nee-${adviceData.reasonCategory}.jpg`}
                         width={800}
                         priority
                         height={1200}
