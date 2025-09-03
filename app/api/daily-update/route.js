@@ -284,7 +284,7 @@ function makeWashingDecision(weather) {
     if (weather.dayTemperature > 25) {
         return {
             decision: "NEE",
-            reason: "Je kan je auto wassen. Let op: overmorgen gaat het miezeren.", // Dit lijkt een fout in PDF, maar ik volg het exact
+            reason: "Het is warm, dit kan watervelkken opleveren tijdens het drogen.",
             reasonCategory: "WARM",
             confidence: "MEDIUM",
             randomNumber: Math.floor(Math.random() * 4) + 1,
@@ -310,7 +310,7 @@ function makeWashingDecision(weather) {
     if (weather.dayTemperature < 5) {
         return {
             decision: "JA",
-            reason: "Maar let op; schoonmaakspullen kunnen minder goed werken.",
+            reason: "Maar let op, schoonmaakspullen kunnen minder goed werken.",
             reasonCategory: "KOUD",
             confidence: "MEDIUM",
             randomNumber: Math.floor(Math.random() * 4) + 1,
@@ -327,7 +327,7 @@ function makeWashingDecision(weather) {
         const lightWeatherWord = isSnowing ? "gaan sneeuwen" : "miezeren";
         return {
             decision: "JA",
-            reason: `Je kan je auto wassen. Let op: overmorgen gaat het ${lightWeatherWord}.`,
+            reason: `Je kan je auto wassen maar let op, overmorgen gaat het ${lightWeatherWord}.`,
             reasonCategory: null,
             confidence: "MEDIUM",
             randomNumber: Math.floor(Math.random() * 4) + 1,
@@ -344,7 +344,7 @@ function makeWashingDecision(weather) {
     // Default tussen 5 en 25 graden
     return {
         decision: "JA",
-        reason: "Het is een goed moment om je auto te wassen.",
+        reason: "Er zijn nu perfect weeromstandig heden om je auto te wassen",
         reasonCategory: null,
         confidence: "HIGH",
         randomNumber: Math.floor(Math.random() * 4) + 1,

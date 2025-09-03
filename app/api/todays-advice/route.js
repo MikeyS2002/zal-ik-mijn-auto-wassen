@@ -374,11 +374,11 @@ function makeWashingDecision(weather) {
 // Emergency fallback advice when everything fails
 function getEmergencyAdvice() {
     return {
-        decision: "MAYBE",
-        reason: "We kunnen het weer momenteel niet checken. Kijk zelf naar buiten - is het droog en niet te koud of warm? Dan kun je waarschijnlijk wassen.",
-        reasonCategory: null,
+        decision: "NEE",
+        reason: "Er is een fout opgelopen. We kunnen het weer momenteel niet checken.",
+        reasonCategory: NULL,
         confidence: "LOW",
-        randomNumber: Math.floor(Math.random() * 4) + 1,
+        randomNumber: null,
         analysis: {
             goodFactors: [],
             badFactors: ["Geen weerdata beschikbaar"],
